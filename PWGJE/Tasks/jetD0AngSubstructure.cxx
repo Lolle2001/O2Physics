@@ -95,6 +95,7 @@ DECLARE_SOA_COLUMN(McpHfEta, mcpHfEta, float);
 DECLARE_SOA_COLUMN(McpHfPhi, mcpHfPhi, float);
 // DECLARE_SOA_COLUMN(HfMass,mcpHfMass, float);
 DECLARE_SOA_COLUMN(McpHfY, mcpHfY, float);
+DECLARE_SOA_COLUMN(McpHfDecayChannel, mcpHfDecayChannel, int);
 DECLARE_SOA_COLUMN(McpHfPrompt, mcpHfPrompt, bool);
 DECLARE_SOA_COLUMN(McpHfMatch, mcpHfMatch, bool);
 
@@ -117,6 +118,7 @@ DECLARE_SOA_COLUMN(McdHfPhi, mcdHfPhi, float);
 DECLARE_SOA_COLUMN(McdHfMass, mcdHfMass, float);
 DECLARE_SOA_COLUMN(McdHfY, mcdHfY, float);
 DECLARE_SOA_COLUMN(McdHfPrompt, mcdHfPrompt, bool);
+DECLARE_SOA_COLUMN(McdHfDecayChannel, mcdHfDecayChannel, int);
 DECLARE_SOA_COLUMN(McdHfMatch, mcdHfMatch, bool);
 // Other
 DECLARE_SOA_COLUMN(McdHfMatchedFrom, mcdHfMatchedFrom, int);
@@ -191,6 +193,7 @@ DECLARE_SOA_TABLE(MatchJetDistanceTable, "AOD", "MATCHTABLE",
                   McpHfEta,
                   McpHfPhi,
                   McpHfY,
+                  McpHfDecayChannel,
                   McpHfPrompt,
                   McdJetHfDist,
                   McdJetPt,
@@ -204,6 +207,7 @@ DECLARE_SOA_TABLE(MatchJetDistanceTable, "AOD", "MATCHTABLE",
                   McdHfPhi,
                   McdHfMass,
                   McdHfY,
+                  McdHfDecayChannel,
                   McdHfPrompt,
                   McdHfMlScore0,
                   McdHfMlScore1,
@@ -321,7 +325,7 @@ struct JetD0AngSubstructure {
   using JetD0MCDTableConstituent = JetD0MCDTable::iterator;
   using JetD0MCPTableConstituent = JetD0MCPTable::iterator;
   // Slices for access to proper HF MCD jet collision that is associated to
-  // MCCollision
+  // MCCollision (suggested: use smallgroup?)
   PresliceUnsorted<aod::JetCollisionsMCD> collisionsPerMCCollisionPreslice = aod::jmccollisionlb::mcCollisionId;
   Preslice<JetD0MCDTable> d0MCDJetsPerEXPCollisionPreslice = aod::jet::collisionId;
   Preslice<JetD0MCPTable> d0MCPJetsPerMCCollisionPreslice = aod::jet::mcCollisionId;
@@ -816,6 +820,7 @@ struct JetD0AngSubstructure {
                           mcpcand.phi(),
                           mcpcand.y(),
                           (mcpcand.originMcGen() == RecoDecay::OriginType::Prompt), // particle level HF
+                          mcpcand.flagMcMatchGen(),
                           jetutilities::deltaR(mcdjet, mcdcand),
                           mcdjet.pt(),
                           mcdjet.eta(),
@@ -823,11 +828,13 @@ struct JetD0AngSubstructure {
                           mcdjet.template tracks_as<aod::JetTracks>().size(), // detector level jet
                           mcdAngularity,
                           mcdzparallel,
+
                           mcdcand.pt(),
                           mcdcand.eta(),
                           mcdcand.phi(),
                           mcdcand.m(),
                           mcdcand.y(),
+                          mcdcand.flagMcMatchRec(),
                           (mcdcand.originMcRec() == RecoDecay::OriginType::Prompt), // detector level HF
                           mcdcand.mlScores()[0],
                           mcdcand.mlScores()[1],
@@ -851,6 +858,7 @@ struct JetD0AngSubstructure {
                         mcpcand.eta(),
                         mcpcand.phi(),
                         mcpcand.y(),
+                        mcpcand.flagMcMatchGen(),
                         (mcpcand.originMcGen() == RecoDecay::OriginType::Prompt), // particle level HF
                         -2,
                         -2,
@@ -858,6 +866,7 @@ struct JetD0AngSubstructure {
                         -2,
                         -2,
                         -2, // detector level jet
+                        -2,
                         -2,
                         -2,
                         -2,
@@ -875,15 +884,15 @@ struct JetD0AngSubstructure {
     } // end of mccollisions loop
   };
 
-  void processataChargedSubstructureD0(aod::JetCollision const& collision,
-                                       JetChargedTableD0 const& jets,
-                                       aod::CandidatesD0Data const& candidates,
-                                       aod::JetTracks const& tracks)
+  void processDataChargedSubstructureD0(aod::JetCollision const& collision,
+                                        JetChargedTableD0 const& jets,
+                                        aod::CandidatesD0Data const& candidates,
+                                        aod::JetTracks const& tracks)
   {
     analyseDataChargedSubstructure<JetChargedTableD0, aod::CandidatesD0Data>(collision, jets, candidates, tracks);
   }
 
-  PROCESS_SWITCH(JetD0AngSubstructure, processataChargedSubstructureD0, "charged HF jet substructure", false);
+  PROCESS_SWITCH(JetD0AngSubstructure, processDataChargedSubstructureD0, "charged HF jet substructure", false);
 
   void processMonteCarloEfficiencyD0(aod::JetMcCollisions const& mccollisions,
                                      aod::JetCollisionsMCD const& collisions,
