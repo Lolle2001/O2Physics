@@ -732,7 +732,7 @@ struct JetD0AngSubstructure {
         TVector3 mcpjetvector(mcpjet.px(), mcpjet.py(), mcpjet.pz());
         TVector3 mcpcandvector(mcpcand.px(), mcpcand.py(), mcpcand.pz());
         float mcpzparallel = (mcpjetvector * mcpcandvector) / (mcpjetvector * mcpjetvector);
-
+        int decayChannelMainGen = mcpcand.flagMcMatchGen();
         if (mcpjet.has_matchedJetCand()) {
           registry.fill(HIST(histnames::McJet), getValFromBin(BinMCJetCntr::ParticleLevelJetWithMatchedCandidate));
 
@@ -784,17 +784,11 @@ struct JetD0AngSubstructure {
             float mcpAngularity = jetCalculateAngularityMCP(mcpjet, jetparticles);
             float mcdAngularity = jetCalculateAngularityMCD(mcdjet, jettracks);
 
-            // filling histograms
-            // registry.fill(HIST(histnames::h_exp_d0_jet_projection),
-            // zParallel);
-            // registry.fill(HIST(histnames::h_exp_d0_jet_distance_vs_projection),
-            // axisDistance, zParallel);
-            // registry.fill(HIST(histnames::h_exp_d0_jet_distance),
-            // axisDistance); registry.fill(HIST(histnames::h_exp_d0_jet_pt),
-            // jet.pt()); registry.fill(HIST(histnames::h_exp_d0_jet_eta),
-            // jet.eta()); registry.fill(HIST(histnames::h_exp_d0_jet_phi),
-            // jet.phi()); registry.fill(HIST(histnames::h_exp_d0_jet_ang),
-            // angularity); Jet Histograms
+            // PWGHF/TableProducer/candidateCreator2Prong.cxx: also includes partially reconstructed tracks (3 prong decays with one missing track)
+            int decayChannelMainRec = mcdcand.flagMcMatchRec();
+            // o2::aod::HfD0Mcs in DerivedTables.h which is used to construct the joined table aod::CandidatesD0MCD does not include the resonance decaychannel.
+            // int decayChannelResonanceGen;
+            // int decayChannelResonanceRec;
 
             registry.fill(HIST(histnames::McDetJetPt), mcdjet.pt());
             registry.fill(HIST(histnames::McDetJetEta), mcdjet.eta());
@@ -819,8 +813,9 @@ struct JetD0AngSubstructure {
                           mcpcand.eta(),
                           mcpcand.phi(),
                           mcpcand.y(),
+                          decayChannelMainGen,
                           (mcpcand.originMcGen() == RecoDecay::OriginType::Prompt), // particle level HF
-                          mcpcand.flagMcMatchGen(),
+
                           jetutilities::deltaR(mcdjet, mcdcand),
                           mcdjet.pt(),
                           mcdjet.eta(),
@@ -834,7 +829,7 @@ struct JetD0AngSubstructure {
                           mcdcand.phi(),
                           mcdcand.m(),
                           mcdcand.y(),
-                          mcdcand.flagMcMatchRec(),
+                          decayChannelMainRec,
                           (mcdcand.originMcRec() == RecoDecay::OriginType::Prompt), // detector level HF
                           mcdcand.mlScores()[0],
                           mcdcand.mlScores()[1],
@@ -858,7 +853,7 @@ struct JetD0AngSubstructure {
                         mcpcand.eta(),
                         mcpcand.phi(),
                         mcpcand.y(),
-                        mcpcand.flagMcMatchGen(),
+                        decayChannelMainGen,
                         (mcpcand.originMcGen() == RecoDecay::OriginType::Prompt), // particle level HF
                         -2,
                         -2,
