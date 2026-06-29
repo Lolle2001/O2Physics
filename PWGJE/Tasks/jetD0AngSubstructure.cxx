@@ -226,7 +226,6 @@ mcp: Monte Carlo data (particle level)
 */
 namespace histnames
 {
-
 /*
 // Experimental Data (analyseDataChargedSubstructure)
 */
@@ -432,10 +431,12 @@ struct JetD0AngSubstructure {
     jetCounter2->GetXaxis()->SetBinLabel(BinMCJetCntr::ParticleLevelJetWithMatchedCandidate, "detector matched jets");
   };
 
+  // Helper function
   template <typename T, typename U>
   float jetCalculateAngularityEXP(T const& jet, U const& /*tracks*/)
   {
     float tAngularity = 0.0;
+    // loops over all constituent tracks (primary vertex ?) corresponding to the jet.
     for (const auto& constituent : jet.template tracks_as<U>()) {
       tAngularity += std::pow(constituent.pt(), kappa) * std::pow(jetutilities::deltaR(jet, constituent) / (jet.r() / 100.f), alpha);
     }
@@ -443,10 +444,12 @@ struct JetD0AngSubstructure {
     return tAngularity;
   }
 
+  // Helper function
   template <typename JetTableMCDConstituent>
   float jetCalculateAngularityMCD(JetTableMCDConstituent const& jet, aod::JetTracks const& tracks)
   {
     float a = 0.f;
+    // loops over track ids in jet and select the track by id from the (reconstructed/detector level) track table.
     for (const auto& id : jet.tracksIds()) {
       const auto trk = tracks.iteratorAt(id);
       a += std::pow(trk.pt(), kappa) * std::pow(jetutilities::deltaR(jet, trk) / (jet.r() / 100.f), alpha);
@@ -454,10 +457,12 @@ struct JetD0AngSubstructure {
     return a / std::pow(jet.pt(), kappa);
   }
 
+  // Helper function
   template <typename JetTableMCPConstituent>
   float jetCalculateAngularityMCP(JetTableMCPConstituent const& jet, aod::JetParticles const& particles)
   {
     float a = 0.f;
+    // loops over track ids in jet and select the particle by id from the particles table (genereated level).
     for (const auto& id : jet.tracksIds()) {
       const auto p = particles.iteratorAt(id);
       a += std::pow(p.pt(), kappa) * std::pow(jetutilities::deltaR(jet, p) / (jet.r() / 100.f), alpha);
@@ -472,6 +477,20 @@ struct JetD0AngSubstructure {
                                       CandidatesTable const& /*candidates*/,
                                       aod::JetTracks const& tracks)
   {
+    /*
+    // aod::JetCollision
+    //    iterator of aod::JetCollisions: will make the process function loop over all collisions.
+    // JetChargedTable
+    //    joined table of (charged) jets containing hf constituents with the table of jet constituents.
+    // CandidatesTable
+    //    data table of hf constituents: only passed as type, since we get the candidates from the candidates_as<>() method.
+    // aod::JetTracks
+    //    table with tracks from which jets and candidates were reconstructed.
+    //
+    // Problems
+    //    no loop over collisions?
+    */
+
     // apply event selection and fill histograms for sanity check
     registry.fill(HIST(histnames::ExCol), getValFromBin(BinExpColCntr::AllCollisions));
     if (!jetderiveddatautilities::selectCollision(collision, eventSelectionBits) || !(std::abs(collision.posZ()) < vertexZCut)) {
@@ -486,7 +505,9 @@ struct JetD0AngSubstructure {
       // obtaining jet 3-vector
       TVector3 jetVector(jet.px(), jet.py(), jet.pz());
 
-      // Loop over D0 candidates associated to the jet
+      float angularity = jetCalculateAngularityEXP(jet, tracks);
+
+      // loop over hf candidates in the candidates table that are associated with the jets in the jet table.
       for (const auto& d0Candidate : jet.template candidates_as<CandidatesTable>()) {
         // obtaining jet 3-vector
         TVector3 d0Vector(d0Candidate.px(), d0Candidate.py(), d0Candidate.pz());
@@ -498,7 +519,7 @@ struct JetD0AngSubstructure {
         // calculating angular distance in eta-phi plane
         double axisDistance = jetutilities::deltaR(jet, d0Candidate);
 
-        float angularity = jetCalculateAngularityEXP(jet, tracks);
+        // calculates angularity of a candidate
 
         // filling histograms
         registry.fill(HIST(histnames::ExJetProj), zParallel);
@@ -514,21 +535,22 @@ struct JetD0AngSubstructure {
         registry.fill(HIST(histnames::ExHflPhi), d0Candidate.phi()); // add more axis
 
         // filling table
-        objJetTable(axisDistance,
-                    jet.pt(),
-                    jet.eta(),
-                    jet.phi(),
-                    jet.template tracks_as<aod::JetTracks>().size(),
-                    angularity,
-                    zParallel,
-                    d0Candidate.pt(),
-                    d0Candidate.eta(),
-                    d0Candidate.phi(),
-                    d0Candidate.m(),
-                    d0Candidate.y(),
-                    d0Candidate.mlScores()[0],
-                    d0Candidate.mlScores()[1],
-                    d0Candidate.mlScores()[2]);
+        objJetTable(axisDistance,                                    // Jet
+                    jet.pt(),                                        // Jet
+                    jet.eta(),                                       // Jet
+                    jet.phi(),                                       // Jet
+                    jet.template tracks_as<aod::JetTracks>().size(), // Jet
+                    angularity,                                      // Jet
+                    zParallel,                                       // Candidate
+                    d0Candidate.pt(),                                // Candidate
+                    d0Candidate.eta(),                               // Candidate
+                    d0Candidate.phi(),                               // Candidate
+                    d0Candidate.m(),                                 // Candidate
+                    d0Candidate.y(),                                 // Candidate
+                    d0Candidate.mlScores()[0],                       // Candidate
+                    d0Candidate.mlScores()[1],                       // Candidate
+                    d0Candidate.mlScores()[2]                        // Candidate
+        );
 
         break; // get out of candidates' loop after first HF particle is found
                // in jet
@@ -732,7 +754,9 @@ struct JetD0AngSubstructure {
         TVector3 mcpjetvector(mcpjet.px(), mcpjet.py(), mcpjet.pz());
         TVector3 mcpcandvector(mcpcand.px(), mcpcand.py(), mcpcand.pz());
         float mcpzparallel = (mcpjetvector * mcpcandvector) / (mcpjetvector * mcpjetvector);
+        float mcpAngularity = jetCalculateAngularityMCP(mcpjet, jetparticles);
         int decayChannelMainGen = mcpcand.flagMcMatchGen();
+        float mcpDeltaR = jetutilities::deltaR(mcpjet, mcpcand);
         if (mcpjet.has_matchedJetCand()) {
           registry.fill(HIST(histnames::McJet), getValFromBin(BinMCJetCntr::ParticleLevelJetWithMatchedCandidate));
 
@@ -767,12 +791,10 @@ struct JetD0AngSubstructure {
             } else if (mcdcand.flagMcMatchRec() == -decayChannel) { // matched to HFbar on truth level
               matchedFrom = -1;
             }
-            // bitwise AND operation: Checks whether BIT(i) is set, regardless
-            // of other bits
+            // bitwise AND operation: Checks whether BIT(i) is set, regardless of other bits
             if (mcdcand.candidateSelFlag() & BIT(0)) { // CandidateSelFlag == BIT(0) -> selected as HF
               selectedAs = 1;
-            } else if (mcdcand.candidateSelFlag() & BIT(1)) { // CandidateSelFlag == BIT(1) -> selected as
-                                                              // HFbar
+            } else if (mcdcand.candidateSelFlag() & BIT(1)) { // CandidateSelFlag == BIT(1) -> selected as HFbar
               selectedAs = -1;
             }
 
@@ -781,9 +803,8 @@ struct JetD0AngSubstructure {
 
             float mcdzparallel = (mcdjetvector * mcdcandvector) / (mcdjetvector * mcdjetvector);
 
-            float mcpAngularity = jetCalculateAngularityMCP(mcpjet, jetparticles);
             float mcdAngularity = jetCalculateAngularityMCD(mcdjet, jettracks);
-
+            float mcdDeltaR = jetutilities::deltaR(mcdjet, mcdcand);
             // PWGHF/TableProducer/candidateCreator2Prong.cxx: also includes partially reconstructed tracks (3 prong decays with one missing track)
             int decayChannelMainRec = mcdcand.flagMcMatchRec();
             // o2::aod::HfD0Mcs in DerivedTables.h which is used to construct the joined table aod::CandidatesD0MCD does not include the resonance decaychannel.
@@ -802,51 +823,49 @@ struct JetD0AngSubstructure {
 
             // store matched particle and detector level data in one single
             // table (calculate angular distance in eta-phi plane on the fly)
-            matchJetTable(jetutilities::deltaR(mcpjet, mcpcand),
-                          mcpjet.pt(),
-                          mcpjet.eta(),
-                          mcpjet.phi(),
-                          mcpjet.template tracks_as<aod::JetParticles>().size(), // particle level jet
-                          mcpAngularity,
-                          mcpzparallel,
-                          mcpcand.pt(),
-                          mcpcand.eta(),
-                          mcpcand.phi(),
-                          mcpcand.y(),
-                          decayChannelMainGen,
-                          (mcpcand.originMcGen() == RecoDecay::OriginType::Prompt), // particle level HF
-
-                          jetutilities::deltaR(mcdjet, mcdcand),
-                          mcdjet.pt(),
-                          mcdjet.eta(),
-                          mcdjet.phi(),
-                          mcdjet.template tracks_as<aod::JetTracks>().size(), // detector level jet
-                          mcdAngularity,
-                          mcdzparallel,
-
-                          mcdcand.pt(),
-                          mcdcand.eta(),
-                          mcdcand.phi(),
-                          mcdcand.m(),
-                          mcdcand.y(),
-                          decayChannelMainRec,
-                          (mcdcand.originMcRec() == RecoDecay::OriginType::Prompt), // detector level HF
-                          mcdcand.mlScores()[0],
-                          mcdcand.mlScores()[1],
-                          mcdcand.mlScores()[2], // Machine Learning PID scores: background, prompt, non-prompt
-                          matchedFrom,
-                          selectedAs); // HF = +1, HFbar = -1, neither = 0
+            matchJetTable(mcpDeltaR,                                                // Gen. Jet
+                          mcpjet.pt(),                                              // Gen. Jet
+                          mcpjet.eta(),                                             // Gen. Jet
+                          mcpjet.phi(),                                             // Gen. Jet
+                          mcpjet.template tracks_as<aod::JetParticles>().size(),    // Gen. Jet
+                          mcpAngularity,                                            // Gen. Jet
+                          mcpzparallel,                                             // Gen. Candidate
+                          mcpcand.pt(),                                             // Gen. Candidate
+                          mcpcand.eta(),                                            // Gen. Candidate
+                          mcpcand.phi(),                                            // Gen. Candidate
+                          mcpcand.y(),                                              // Gen. Candidate
+                          decayChannelMainGen,                                      // Gen. Candidate
+                          (mcpcand.originMcGen() == RecoDecay::OriginType::Prompt), // Gen. Candidate
+                          mcdDeltaR,                                                // Rec. Jet
+                          mcdjet.pt(),                                              // Rec. Jet
+                          mcdjet.eta(),                                             // Rec. Jet
+                          mcdjet.phi(),                                             // Rec. Jet
+                          mcdjet.template tracks_as<aod::JetTracks>().size(),       // Rec. Jet
+                          mcdAngularity,                                            // Rec. Jet
+                          mcdzparallel,                                             // Rec. Candidate
+                          mcdcand.pt(),                                             // Rec. Candidate
+                          mcdcand.eta(),                                            // Rec. Candidate
+                          mcdcand.phi(),                                            // Rec. Candidate
+                          mcdcand.m(),                                              // Rec. Candidate
+                          mcdcand.y(),                                              // Rec. Candidate
+                          decayChannelMainRec,                                      // Rec. Candidate
+                          (mcdcand.originMcRec() == RecoDecay::OriginType::Prompt), // Rec. Candidate
+                          mcdcand.mlScores()[0],                                    // Rec. Candidate (ML: background)
+                          mcdcand.mlScores()[1],                                    // Rec. Candidate (ML: prompt)
+                          mcdcand.mlScores()[2],                                    // Rec. Candidate (ML: non-prompt)
+                          matchedFrom,                                              // Rec. Candidate
+                          selectedAs                                                // Rec. Candidate (HF = +1, HFbar = -1, neither = 0)
+            );
           }
         } else {
           // store matched particle and detector level data in one single table
           // (calculate angular distance in eta-phi plane on the fly)
-          float mcpAngularity = jetCalculateAngularityMCP(mcpjet, jetparticles);
-          // float mcpAngularity = 0.;
-          matchJetTable(jetutilities::deltaR(mcpjet, mcpcand),
+
+          matchJetTable(mcpDeltaR,
                         mcpjet.pt(),
                         mcpjet.eta(),
                         mcpjet.phi(),
-                        mcpjet.template tracks_as<aod::JetParticles>().size(), // particle level jet
+                        mcpjet.template tracks_as<aod::JetParticles>().size(),
                         mcpAngularity,
                         mcpzparallel,
                         mcpcand.pt(),
@@ -854,13 +873,7 @@ struct JetD0AngSubstructure {
                         mcpcand.phi(),
                         mcpcand.y(),
                         decayChannelMainGen,
-                        (mcpcand.originMcGen() == RecoDecay::OriginType::Prompt), // particle level HF
-                        -2,
-                        -2,
-                        -2,
-                        -2,
-                        -2,
-                        -2, // detector level jet
+                        (mcpcand.originMcGen() == RecoDecay::OriginType::Prompt),
                         -2,
                         -2,
                         -2,
@@ -868,12 +881,18 @@ struct JetD0AngSubstructure {
                         -2,
                         -2,
                         -2,
-                        -2, // detector level HF
                         -2,
                         -2,
-                        -2, // Machine Learning PID scores: background, prompt, non-prompt
                         -2,
-                        -2); // HF = +1, HFbar = -1, neither = 0
+                        -2,
+                        -2,
+                        -2,
+                        -2,
+                        -2,
+                        -2,
+                        -2,
+                        -2,
+                        -2);
         }
       } // end of mcpjets loop
     } // end of mccollisions loop
