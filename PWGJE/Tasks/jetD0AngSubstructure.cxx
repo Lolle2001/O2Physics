@@ -131,6 +131,7 @@ DECLARE_SOA_COLUMN(McdHfMlScore2, mcdHfMlScore2, float);
 /*
 // AOD table definition
 */
+
 DECLARE_SOA_TABLE(EXPJetObjTable, "AOD", "EXPJETOBJTABLE",
                   ExpJetHfDist,
                   ExpJetPt,
@@ -147,6 +148,7 @@ DECLARE_SOA_TABLE(EXPJetObjTable, "AOD", "EXPJETOBJTABLE",
                   ExpHfMlScore0,
                   ExpHfMlScore1,
                   ExpHfMlScore2);
+
 DECLARE_SOA_TABLE(MCPJetObjTable, "AOD", "MCPJETOBJTABLE",
                   McpJetHfDist,
                   McpJetPt,
@@ -306,7 +308,18 @@ enum BinMCJetCntr { DetectorLevelJetInMCCollision = 1,
                     DetectorLevelJetWithMatchedCandidate = 3,
                     ParticleLevelJetWithMatchedCandidate = 4
 };
-
+/**
+ * @brief A task with the purpose of analysing the substructure and heavy flavour candidates in jets that contain D0 candidates.
+ *
+ * @param objJetTable Output table for experimental data (at @b detector level)
+ * @param mcdJetTable Output table for Monte Carlo data (at @b detector level)
+ * @param mcpJetTable Output table for Monte Carlo data (at @b particle level)
+ * @param matchJetTable Output table for matched Monte Carlo data (at @b detector @a and @b particle level)
+ *
+ * @param JetChargedTableD0 Type of the joined table of jets and jet constituents
+ * @param JetD0MCDTable Type of the joined table of @b detector level jets and jet constituents
+ * @param JetD0MCPTable Type of the joined table of @b particle level jets and jet constituents
+ **/
 struct JetD0AngSubstructure {
 
   // Output table producer
@@ -314,7 +327,10 @@ struct JetD0AngSubstructure {
   Produces<aod::MCDJetObjTable> mcdJetTable;
   Produces<aod::MCPJetObjTable> mcpJetTable;
   Produces<aod::MatchJetDistanceTable> matchJetTable;
-  //
+  /**
+   * @a D0ChargedJets Produced by:
+   * @a D0ChargedJetConstituents Produced by:
+   **/
   using JetChargedTableD0 = soa::Join<aod::D0ChargedJets, aod::D0ChargedJetConstituents>;
   // MC Matching Tables
   using JetD0MCDTable = soa::Join<aod::D0ChargedMCDetectorLevelJets, aod::D0ChargedMCDetectorLevelJetConstituents, aod::D0ChargedMCDetectorLevelJetsMatchedToD0ChargedMCParticleLevelJets>;
@@ -470,6 +486,21 @@ struct JetD0AngSubstructure {
     return a / std::pow(jet.pt(), kappa);
   }
 
+  /**
+   * @brief Processes experimental data and fills a table with jet and D0 candidate information within selection criteria.
+   *
+   * This function loops over collisions and makes collision selections.
+   * Inside there is a loop over jets that have a D0 candidate corresponded with it (so not all jets).
+   * Then a loop is done over the candidates, but it is broken after the first candidate is found.
+   * The function fills a table with the jet information and the candidate information for (offline) analysis.
+   *
+   * @param collision Iterator of aod::JetCollisions: will make the process function loop over all collisions.
+   * @param jets Joined table of (charged) jets containing hf constituents with the table of jet constituents.
+   * @param candidates Data table of hf constituents: only passed as type, since we get the candidates from the candidates_as<>() method.
+   * @param tracks Table with tracks from which jets and candidates were reconstructed.
+   * @tparam JetChargedTable Type of the joined table of jets and jet constituents.
+   * @tparam CandidatesTable Type of the candidates table.
+   **/
   template <typename JetChargedTable,
             typename CandidatesTable>
   void analyseDataChargedSubstructure(aod::JetCollision const& collision,
@@ -477,19 +508,8 @@ struct JetD0AngSubstructure {
                                       CandidatesTable const& /*candidates*/,
                                       aod::JetTracks const& tracks)
   {
-    /*
-    // aod::JetCollision
-    //    iterator of aod::JetCollisions: will make the process function loop over all collisions.
-    // JetChargedTable
-    //    joined table of (charged) jets containing hf constituents with the table of jet constituents.
-    // CandidatesTable
-    //    data table of hf constituents: only passed as type, since we get the candidates from the candidates_as<>() method.
-    // aod::JetTracks
-    //    table with tracks from which jets and candidates were reconstructed.
-    //
-    // Problems
-    //    no loop over collisions?
-    */
+
+    // Problems no loop over collisions?
 
     // apply event selection and fill histograms for sanity check
     registry.fill(HIST(histnames::ExCol), getValFromBin(BinExpColCntr::AllCollisions));
@@ -656,14 +676,15 @@ struct JetD0AngSubstructure {
             angularity,
             mcdzparallel,
             mcdd0cand.pt(),
-            mcdd0cand.eta(), mcdd0cand.phi(),
-            mcdd0cand.m(), mcdd0cand.y(),
+            mcdd0cand.eta(),
+            mcdd0cand.phi(),
+            mcdd0cand.m(),
+            mcdd0cand.y(),
             (mcdd0cand.originMcRec() == RecoDecay::OriginType::Prompt), // detector level D0 candidate
             mcdjet.has_matchedJetCand(),
             mcdd0cand.mlScores()[0],
             mcdd0cand.mlScores()[1],
             mcdd0cand.mlScores()[2], // // Machine Learning PID scores: background, prompt, non-prompt
-
             matchedFrom,
             selectedAs); // D0 = +1, D0bar = -1, neither = 0
         }
@@ -710,7 +731,6 @@ struct JetD0AngSubstructure {
                     mcpd0cand.pt(),
                     mcpd0cand.eta(),
                     mcpd0cand.phi(),
-                    // mcpd0cand.m(),
                     mcpd0cand.y(),
                     (mcpd0cand.originMcGen() == RecoDecay::OriginType::Prompt), // particle level D0
                     mcpjet.has_matchedJetCand());
